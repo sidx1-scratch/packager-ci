@@ -208,6 +208,52 @@
   const pack = async () => {
     resetResult();
     const task = new Task();
+
+    // Auto-publish flow: if user enabled autoPublish and requested a linux package,
+    // first generate a ZIP and upload it to /api/publish-release which will create a GitHub Release
+    // and trigger the CI workflow to build .deb/.rpm artifacts.
+    if ($options.linuxPackage && $options.linuxPackage.autoPublish && ($options.target.includes('deb') || $options.target.includes('rpm'))) {
+      try {
+        const zipOptions = deepClone($options);
+        zipOptions.target = 'zip';
+        task.setProgressText('Packaging ZIP for CI...');
+        const zipResult = await task.do(runPackager(task, zipOptions));
+        task.done();
+
+        // Prepare headers and upload
+        const tag = zipOptions.app && zipOptions.app.version ? (`v${zipOptions.app.version}`) : (`v${Date.now()}`);
+        const filename = `${zipOptions.app.packageName || 'packaged'}.zip`;
+
+        const resp = await fetch('/api/publish-release', {
+          method: 'POST',
+          headers: {
+            'x-release-tag': tag,
+            'x-file-name': filename,
+            'x-release-name': zipOptions.app.windowTitle || zipOptions.app.packageName || tag,
+          },
+          body: zipResult.blob
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`Publish failed: ${resp.status} ${resp.statusText} - ${text}`);
+        }
+        const json = await resp.json();
+        const releaseUrl = json.release && json.release.html_url;
+        const asset = json.asset;
+        const assetUrl = asset && asset.browser_download_url;
+        alert(`Release published: ${releaseUrl}\nAsset: ${assetUrl || asset && asset.name}`);
+
+        // Optionally start a download of the zip locally
+        downloadURL(zipResult.filename, zipResult.url);
+        return;
+      } catch (e) {
+        task.done();
+        $error = e;
+        return;
+      }
+    }
+
+    // Default behavior: just package normally and offer the download
     result = await task.do(runPackager(task, deepClone($options)));
     task.done();
     downloadURL(result.filename, result.url);
@@ -970,6 +1016,12 @@
               </div>
             </label>
             <p>{$_('options.maintainerHelp')}</p>
+
+            <label class="option">
+              <input type="checkbox" bind:checked={$options.linuxPackage.autoPublish}>
+              Automatically publish ZIP to Vercel and build .deb/.rpm via CI
+            </label>
+            <p>If enabled, after packaging the site will upload a ZIP to the server which publishes a GitHub Release and triggers CI to build .deb/.rpm. Ensure your Vercel instance has GITHUB_TOKEN and GITHUB_REPO configured. See <a href="/docs/BUILD_PACKAGES.md">docs</a>.</p>
 
             <label class="option">
               {$_('options.section')}

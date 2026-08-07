@@ -1880,7 +1880,10 @@ Packager.DEFAULT_OPTIONS = () => ({
     maintainerName: '',
     maintainerEmail: '',
     section: 'games',
-    description: 'Packaged project using HyperWarp Packager'
+    description: 'Packaged project using HyperWarp Packager',
+    // When true, the web app will publish the packaged ZIP to the server endpoint which creates a GitHub Release
+    // and triggers the CI workflow to build .deb/.rpm automatically.
+    autoPublish: false
   }
 });
 
