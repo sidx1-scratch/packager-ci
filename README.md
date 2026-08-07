@@ -1,4 +1,6 @@
-# TurboWarp Packager
+# HyperWarp Packager
+
+[![Build packages](https://github.com/sidx1-scratch/packager-ci/actions/workflows/build-packages.yml/badge.svg)](https://github.com/sidx1-scratch/packager-ci/actions/workflows/build-packages.yml)
 
 https://packager.turbowarp.org/
 
