@@ -429,8 +429,13 @@ export async function buildRpm(electronZip, options) {
     mainHeader = paddedMain;
   }
 
-  // Create an empty signature header (zero tags) — RPM expects a signature header area even for unsigned packages
-  let sigHeader = buildRpmHeader([]);
+  // Build a minimal signature header with two simple INT32 tags so RPM tools see a valid signature region
+  // Tag numbers used are arbitrary but must be well-formed; older tools accept 1000/1001 here.
+  const sigTags = [
+    { tag: 1000, type: 4, value: payloadGzip.length },
+    { tag: 1001, type: 4, value: cpioArchive.length }
+  ];
+  let sigHeader = buildRpmHeader(sigTags);
   if (sigHeader.length % 8 !== 0) {
     const pad = 8 - (sigHeader.length % 8);
     const paddedSig = new Uint8Array(sigHeader.length + pad);
