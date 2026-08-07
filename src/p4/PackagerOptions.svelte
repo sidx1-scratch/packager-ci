@@ -1048,6 +1048,7 @@
             <div>
               <h2>Linux</h2>
               <p>Linux support is still experimental.</p>
+              <p>To get .deb and .rpm packages automatically, publish a GitHub Release with the packaged ZIP asset attached — this repository will build .deb/.rpm via GitHub Actions and attach them as artifacts. See <a href="/docs/BUILD_PACKAGES.md">docs/BUILD_PACKAGES.md</a> for details.</p>
             </div>
           {/if}
 
