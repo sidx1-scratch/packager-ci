@@ -52,7 +52,7 @@
     "fastestsmallesttextencoderdecoder": "^1.0.22",
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^4.5.2",
-    "jest": "^27.4.5",
+    "jest": "^30.4.2",
     "rimraf": "^2.7.1",
     "scratch-audio": "github:TurboWarp/scratch-audio#develop",
     "scratch-render": "github:TurboWarp/scratch-render#develop",
