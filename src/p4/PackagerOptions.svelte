@@ -241,7 +241,41 @@
         const releaseUrl = json.release && json.release.html_url;
         const asset = json.asset;
         const assetUrl = asset && asset.browser_download_url;
-        alert(`Release published: ${releaseUrl}\nAsset: ${assetUrl || asset && asset.name}`);
+
+        // Start polling for built packages (only works for public repos or when /api/download-latest can proxy)
+        const ext = $options.target.includes('rpm') ? 'rpm' : ($options.target.includes('deb') ? 'deb' : 'rpm');
+        const pollUrl = `/api/download-latest?ext=${ext}`;
+        const maxAttempts = 60; // ~5 minutes
+        const delayMs = 5000;
+        let attempt = 0;
+        task.setProgressText('Waiting for CI to build packages...');
+        while (attempt < maxAttempts) {
+          attempt++;
+          try {
+            // Use manual redirect so we can extract the asset URL without following
+            const pResp = await fetch(pollUrl, { method: 'GET', redirect: 'manual' });
+            if (pResp.status === 302) {
+              const loc = pResp.headers.get('Location');
+              if (loc) {
+                alert(`Package ready: ${loc}`);
+                // Offer download
+                window.open(loc, '_blank');
+                break;
+              }
+            } else if (pResp.status === 200) {
+              // If proxying, server will stream the file — trigger download by requesting the endpoint normally
+              window.open(pollUrl, '_blank');
+              break;
+            }
+          } catch (e) {
+            // ignore and retry
+          }
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+
+        if (attempt >= maxAttempts) {
+          alert(`Package build timed out after ${Math.round((maxAttempts*delayMs)/1000)}s. Check the Release or Actions for errors.`);
+        }
 
         // Optionally start a download of the zip locally
         downloadURL(zipResult.filename, zipResult.url);
