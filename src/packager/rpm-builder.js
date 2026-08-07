@@ -408,9 +408,17 @@ export async function buildRpm(electronZip, options) {
     { tag: 1117, type: 8, value: dirNames }
   ];
 
-  const mainHeader = buildRpmHeader(mainTags);
+  // Build main header and ensure 8-byte alignment (required by RPM spec)
+  const _mainHeader = buildRpmHeader(mainTags);
+  let mainHeader = _mainHeader;
+  if (mainHeader.length % 8 !== 0) {
+    const pad = 8 - (mainHeader.length % 8);
+    const paddedMain = new Uint8Array(mainHeader.length + pad);
+    paddedMain.set(mainHeader, 0);
+    mainHeader = paddedMain;
+  }
 
-  // Signature header
+  // Signature header — size should include padded main header length
   const sigTags = [
     { tag: 1000, type: 4, value: mainHeader.length + payloadGzip.length },
     { tag: 1007, type: 4, value: cpioArchive.length }
