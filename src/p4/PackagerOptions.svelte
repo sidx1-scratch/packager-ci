@@ -96,7 +96,9 @@
     'zip',
     'electron-win32',
     'webview-mac',
-    'electron-linux64'
+    'electron-linux64',
+    'electron-linux-deb64',
+    'electron-linux-rpm64'
   ].includes($options.target);
 
   const advancedOptionsInitiallyOpen = (
@@ -132,6 +134,32 @@
     };
     image.src = url;
   };
+
+  // If existing single-string maintainer is present but name/email are empty, parse it into the new fields.
+  const parseMaintainerString = (s) => {
+    if (!s) return {name: '', email: ''};
+    const m = s.match(/^(.*?)\s*<([^>]+)>\s*$/);
+    if (m) return {name: m[1].trim(), email: m[2].trim()};
+    return {name: s, email: ''};
+  };
+
+  // Initialize maintainerName/email from any saved maintainer string when the component loads
+  if ($options && $options.linuxPackage) {
+    if (!$options.linuxPackage.maintainerName && !$options.linuxPackage.maintainerEmail && $options.linuxPackage.maintainer) {
+      const parsed = parseMaintainerString($options.linuxPackage.maintainer);
+      $options.linuxPackage.maintainerName = parsed.name;
+      $options.linuxPackage.maintainerEmail = parsed.email;
+    }
+  }
+
+  // Auto-combine name + email into legacy maintainer field for compatibility
+  $: if ($options && $options.linuxPackage) {
+    const name = $options.linuxPackage.maintainerName || '';
+    const email = $options.linuxPackage.maintainerEmail || '';
+    if (name || email) {
+      $options.linuxPackage.maintainer = email ? `${name} <${email}>` : name;
+    }
+  }
 
   const runPackager = async (task, options) => {
     const packager = new Packager();
@@ -334,7 +362,7 @@
 </style>
 
 <Section
-  accent="#FFAB19"
+  accent="#2563eb"
   reset={() => {
     resetOptions([
       'turbo',
@@ -453,7 +481,7 @@
 </Section>
 
 <Section
-  accent="#9966FF"
+  accent="#059669"
   reset={() => {
     $icon = null;
     $loadingScreenImage = null;
@@ -568,7 +596,7 @@
 </Section>
 
 <Section
-  accent="#4CBFE6"
+  accent="#2563eb"
   reset={() => {
     $customCursorIcon = null;
     resetOptions([
@@ -635,7 +663,7 @@
 </Section>
 
 <Section
-  accent="#FF8C1A"
+  accent="#059669"
   reset={cloudVariables.length === 0 ? null : () => {
     resetOptions([
       'cloudVariables'
@@ -714,7 +742,7 @@
 </Section>
 
 <Section
-  accent="#FF6680"
+  accent="#2563eb"
   reset={() => {
     resetOptions([
       'compiler',
@@ -792,7 +820,7 @@
 </Section>
 
 <Section
-  accent="#0FBD8C"
+  accent="#059669"
   reset={() => {
     resetOptions([
       'target'
@@ -826,6 +854,14 @@
         <input type="radio" name="environment" bind:group={$options.target} value="electron-linux64">
         {$_('options.application-linux64').replace('{type}', 'Electron')}
       </label>
+      <label class="option">
+        <input type="radio" name="environment" bind:group={$options.target} value="electron-linux-deb64">
+        {$_('options.application-linux-deb64').replace('{type}', 'Electron')}
+      </label>
+      <label class="option">
+        <input type="radio" name="environment" bind:group={$options.target} value="electron-linux-rpm64">
+        {$_('options.application-linux-rpm64').replace('{type}', 'Electron')}
+      </label>
     </div>
 
     <details open={otherEnvironmentsInitiallyOpen}>
@@ -857,7 +893,15 @@
         <label class="option">
           <input type="radio" name="environment" bind:group={$options.target} value="electron-linux-arm64">
           {$_('options.application-linux-arm64').replace('{type}', 'Electron')}
-        </label>  
+        </label>
+        <label class="option">
+          <input type="radio" name="environment" bind:group={$options.target} value="electron-linux-deb-arm64">
+          {$_('options.application-linux-deb-arm64').replace('{type}', 'Electron')}
+        </label>
+        <label class="option">
+          <input type="radio" name="environment" bind:group={$options.target} value="electron-linux-rpm-arm64">
+          {$_('options.application-linux-rpm-arm64').replace('{type}', 'Electron')}
+        </label>
       </div>
 
       <div class="group">
@@ -885,13 +929,14 @@
 {#if $options.target !== 'html'}
   <div in:fade|local>
     <Section
-      accent="#FF661A"
+      accent="#2563eb"
       reset={$options.target.startsWith('zip') ? null : () => {
         resetOptions([
           'app.packageName',
           'app.windowMode',
           'app.escapeBehavior',
-          'app.backgroundThrottling'
+          'app.backgroundThrottling',
+          'linuxPackage'
         ]);
       }}
     >
@@ -912,6 +957,32 @@
             <input type="text" class="version" bind:value={$options.app.version} pattern="\d+\.\d+\.\d+" placeholder="1.0.0" minlength="1">
           </label>
           <p>{$_('options.versionHelp')}</p>
+
+          {#if $options.target.includes('deb') || $options.target.includes('rpm')}
+            <h3>{$_('options.linuxPackageSettings')}</h3>
+
+            <label class="option">
+              {$_('options.maintainer')}
+              <div>
+                <input type="text" placeholder="Name" bind:value={$options.linuxPackage.maintainerName} class="shorter">
+                &nbsp;
+                <input type="email" placeholder="email@example.org" bind:value={$options.linuxPackage.maintainerEmail} class="shorter">
+              </div>
+            </label>
+            <p>{$_('options.maintainerHelp')}</p>
+
+            <label class="option">
+              {$_('options.section')}
+              <input type="text" bind:value={$options.linuxPackage.section}>
+            </label>
+            <p>{$_('options.sectionHelp')}</p>
+
+            <label class="option">
+              {$_('options.description')}
+              <input type="text" bind:value={$options.linuxPackage.description}>
+            </label>
+            <p>{$_('options.descriptionHelp')}</p>
+          {/if}
 
           {#if $options.target.includes('electron')}
             <label class="option">
@@ -962,7 +1033,7 @@
             <div>
               <h2>Windows</h2>
               <p>All Windows applications generated by this site are unsigned, so users will see SmartScreen warnings when they try to run it for the first time. They can bypass these warnings by pressing "More info" then "Run anyways".</p>
-              <p>To change the icon of the executable file or create an installer program, download and run <a href="https://github.com/TurboWarp/packager-extras/releases">TurboWarp Packager Extras</a> and select the output of this website.</p>
+              <p>To change the icon of the executable file or create an installer program, download and run <a href="https://github.com/TurboWarp/packager-extras/releases">HyperWarp Packager Extras</a> and select the output of this website.</p>
             </div>
           {:else if $options.target.includes('mac')}
             <div>
@@ -1026,7 +1097,7 @@
 
 {#if projectData.project.analysis.usesSteamworks}
   <Section
-    accent="#136C9F"
+    accent="#059669"
     reset={() => {
       resetOptions([
         'steamworks'

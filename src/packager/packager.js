@@ -12,6 +12,8 @@ import {OutdatedPackagerError} from '../common/errors';
 import {darken} from './colors';
 import {Adapter} from './adapter';
 import encodeBigString from './encode-big-string';
+import {buildDeb} from './deb-builder';
+import {buildRpm} from './rpm-builder';
 
 const PROGRESS_LOADED_SCRIPTS = 0.1;
 
@@ -762,7 +764,7 @@ const {contextBridge, ipcRenderer} = require('electron');
 
     if (
       this.project.analysis.usesSteamworks &&
-      ['electron-win64', 'electron-linux64', 'electron-mac'].includes(this.options.target)
+      ['electron-win64', 'electron-linux64', 'electron-mac', 'electron-linux-deb64', 'electron-linux-rpm64'].includes(this.options.target)
     ) {
       mainJS += `
       const enableSteamworks = () => {
@@ -1708,6 +1710,22 @@ cd "$(dirname "$0")"
       }
 
       this.ensureNotAborted();
+      if (this.options.target.includes('-deb')) {
+        const debData = await buildDeb(zip, this.options);
+        return {
+          data: debData,
+          type: 'application/x-debian-package',
+          filename: this.generateFilename('deb')
+        };
+      }
+      if (this.options.target.includes('-rpm')) {
+        const rpmData = await buildRpm(zip, this.options);
+        return {
+          data: rpmData,
+          type: 'application/x-rpm',
+          filename: this.generateFilename('rpm')
+        };
+      }
       return {
         data: await zip.generateAsync({
           type: 'uint8array',
@@ -1854,7 +1872,16 @@ Packager.DEFAULT_OPTIONS = () => ({
   },
   extensions: [],
   bakeExtensions: true,
-  maxTextureDimension: 2048
+  maxTextureDimension: 2048,
+  linuxPackage: {
+    // Backwards-compatible single-string maintainer for existing saved settings
+    maintainer: 'HyperWarp Developer <developer@hyperwarp.org>',
+    // New separate fields for better UX
+    maintainerName: '',
+    maintainerEmail: '',
+    section: 'games',
+    description: 'Packaged project using HyperWarp Packager'
+  }
 });
 
 export default Packager;

@@ -175,7 +175,18 @@ export async function buildDeb(electronZip, options) {
   const packageName = options.app.packageName;
   const version = options.app.version || '1.0.0';
   const arch = options.target.includes('arm64') ? 'arm64' : 'amd64';
-  const maintainer = (options.linuxPackage && options.linuxPackage.maintainer) || 'HyperWarp Developer <developer@hyperwarp.org>';
+  // Prefer explicit name/email fields when available for better UX; fall back to legacy maintainer string
+  let maintainer = 'HyperWarp Developer <developer@hyperwarp.org>';
+  if (options.linuxPackage) {
+    const lp = options.linuxPackage;
+    if (lp.maintainerName || lp.maintainerEmail) {
+      const name = lp.maintainerName || '';
+      const email = lp.maintainerEmail || '';
+      maintainer = email ? `${name} <${email}>` : (name || lp.maintainer || maintainer);
+    } else if (lp.maintainer) {
+      maintainer = lp.maintainer;
+    }
+  }
   const section = (options.linuxPackage && options.linuxPackage.section) || 'games';
   const description = (options.linuxPackage && options.linuxPackage.description) || 'Packaged project using HyperWarp Packager';
   const title = options.app.windowTitle || packageName;
