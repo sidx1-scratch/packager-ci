@@ -57,10 +57,25 @@ jobs:
 
           ls -la *.rpm *.deb || true
 
-      - name: Upload generated packages
+      - name: Upload generated packages (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: built-packages
           path: |
             *.rpm
             *.deb
+
+      - name: Upload generated packages to the Release
+        env:
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Upload each generated file as a release asset
+          for f in *.rpm *.deb; do
+            [ -f "$f" ] || continue
+            echo "Uploading $f to release $RELEASE_ID"
+            UPLOAD_URL="https://uploads.github.com/repos/${REPO}/releases/${RELEASE_ID}/assets?name=$(basename "$f")"
+            curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" --data-binary @"$f" "$UPLOAD_URL"
+          done
