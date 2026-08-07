@@ -429,18 +429,9 @@ export async function buildRpm(electronZip, options) {
     mainHeader = paddedMain;
   }
 
-  // Signature header — size should include padded main header length
-  const sigTags = [
-    { tag: 1000, type: 4, value: mainHeader.length + payloadGzip.length },
-    { tag: 1007, type: 4, value: cpioArchive.length }
-  ];
-  let sigHeader = buildRpmHeader(sigTags);
-  if (sigHeader.length % 8 !== 0) {
-    const pad = 8 - (sigHeader.length % 8);
-    const paddedSig = new Uint8Array(sigHeader.length + pad);
-    paddedSig.set(sigHeader, 0);
-    sigHeader = paddedSig;
-  }
+  // For compatibility with many systems (and to avoid malformed signature headers), omit the signature header
+  // and produce an unsigned RPM. This avoids errors like "invalid signature tag Archivesize (1046)".
+  const sigHeader = new Uint8Array(0);
 
   // Lead (96 bytes)
   const lead = new Uint8Array(96);
@@ -452,17 +443,14 @@ export async function buildRpm(electronZip, options) {
   const nameBytes = encoder.encode(packageName).subarray(0, 65);
   lead.set(nameBytes, 10);
   lView.setUint16(76, 1, false); // Linux OS
-  lView.setUint16(78, 5, false); // Header standalone signature
+  lView.setUint16(78, 0, false); // No standalone signature (unsigned RPM)
 
-  const totalRpmLen = lead.length + sigHeader.length + mainHeader.length + payloadGzip.length;
+  const totalRpmLen = lead.length + mainHeader.length + payloadGzip.length;
   const rpmBuffer = new Uint8Array(totalRpmLen);
   let offset = 0;
 
   rpmBuffer.set(lead, offset);
   offset += lead.length;
-
-  rpmBuffer.set(sigHeader, offset);
-  offset += sigHeader.length;
 
   rpmBuffer.set(mainHeader, offset);
   offset += mainHeader.length;
