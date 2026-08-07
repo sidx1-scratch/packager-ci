@@ -1,0 +1,66 @@
+name: Build packages from release asset
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (for repo files)
+        uses: actions/checkout@v4
+
+      - name: Install system packages and fpm
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm rpm-build ruby-dev build-essential rubygems unzip
+          sudo gem install --no-document fpm
+
+      - name: Download first zip release asset
+        env:
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Listing assets for release $RELEASE_ID"
+          ASSETS_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$REPO/releases/$RELEASE_ID/assets")
+          ASSET_ID=$(echo "$ASSETS_JSON" | jq -r '.[] | select(.name | test("\.zip$")) | .id' | head -n1)
+          if [ -z "$ASSET_ID" ] || [ "$ASSET_ID" = "null" ]; then
+            echo "No zip asset found, failing"; exit 1
+          fi
+          echo "Downloading asset id $ASSET_ID"
+          curl -L -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/octet-stream" "https://api.github.com/repos/$REPO/releases/assets/$ASSET_ID" -o /tmp/release-asset.zip
+          unzip -q /tmp/release-asset.zip -d /tmp/release-asset
+          ls -la /tmp/release-asset
+
+      - name: Build RPM and DEB with fpm
+        env:
+          PACKAGE_NAME: ${{ github.event.release.name || github.event.release.tag_name }}
+          PACKAGE_VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          # Expect extracted content to have a directory, pick the first folder
+          cd /tmp/release-asset
+          FIRST_DIR=$(ls -1 | head -n1)
+          echo "Found directory: $FIRST_DIR"
+          mkdir -p /tmp/package-root
+          # Copy contents into package root preserving structure
+          cp -a "$FIRST_DIR"/* /tmp/package-root/ || true
+
+          # Create .deb
+          fpm -s dir -t deb -n "$PACKAGE_NAME" -v "$PACKAGE_VERSION" --prefix / -C /tmp/package-root . || true
+          # Create .rpm
+          fpm -s dir -t rpm -n "$PACKAGE_NAME" -v "$PACKAGE_VERSION" --prefix / -C /tmp/package-root . || true
+
+          ls -la *.rpm *.deb || true
+
+      - name: Upload generated packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-packages
+          path: |
+            *.rpm
+            *.deb
